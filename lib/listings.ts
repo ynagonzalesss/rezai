@@ -19,7 +19,7 @@ export const isListingQuestion = (m: string) =>
   /descri|listing|amenit|headline|house rules|rules|summary text|bedroom|bathroom|sleeps|max guests|capacity|audit|pool|hot tub|pet policy|debug fields|what.s in the property/.test(m) &&
   !/booking|check.?in|check.?out|arriv|depart|cancel|staying/.test(m);
 
-async function load(get: Fetcher, m: string) {
+export async function load(get: Fetcher, m: string) {
   const props = list(await get('/properties?limit=100'));
   const words = (p: any) => String(p.name || p.external_name || '').toLowerCase().split(/[\s–-]+/).filter((w: string) => w.length > 3);
   const named = props.filter(p => { const n = String(p.name || p.external_name || '').toLowerCase(); const w = words(p); if (n.length > 3 && m.includes(n)) return true; if (!w.length) return false;
@@ -28,7 +28,7 @@ async function load(get: Fetcher, m: string) {
   return { props, named };
 }
 
-async function content(get: Fetcher, p: any) {
+export async function content(get: Fetcher, p: any) {
   let listing: any = null, source = '';
   for (const path of [`/listings?property_ids=${p.id}`, `/listings/${p.id}`, `/properties/${p.id}/listing`]) {
     try { const d = await get(path); const l = Array.isArray(list(d)) && list(d).length ? list(d)[0] : (d && !Array.isArray(d) && !d.items ? d : null); if (l) { listing = l; source = path.split('?')[0]; break; } } catch {}
