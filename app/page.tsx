@@ -5,6 +5,11 @@ import {AlertTriangle,CheckCircle2,Wrench,MessageSquare} from 'lucide-react';
 type Issue={id:string;property:string;guest:string;summary:string;category:string;priority:string;status:string;assignee:string};
 type Prop={id:string;name:string;score:number;review:boolean;city:string};
 
+function Rich({text}:{text:string}){
+ const out:any[]=[]; const re=/\[([^\]]+)\]\((https:\/\/app\.ownerrez\.com\/[^\s)]+)\)|\*\*([^*]+)\*\*/g; let last=0,m:RegExpExecArray|null,i=0;
+ while((m=re.exec(text))){ if(m.index>last)out.push(text.slice(last,m.index)); out.push(m[1]?<a key={i++} href={m[2]} target="_blank" rel="noopener noreferrer" style={{color:'#14313b',textDecoration:'underline'}}>{m[1]}</a>:<b key={i++}>{m[3]}</b>); last=m.index+m[0].length; }
+ if(last<text.length)out.push(text.slice(last)); return <>{out}</>;
+}
 export default function Home(){
  const [issues,setIssues]=useState<Issue[]>([]); const [props,setProps]=useState<Prop[]>([]);
  const [q,setQ]=useState(''); const [reply,setReply]=useState(''); const [mode,setMode]=useState('demo'); const [key,setKey]=useState(''); const [loading,setLoading]=useState(false);
@@ -27,7 +32,7 @@ export default function Home(){
     <section style={card}><h2>Needs attention</h2>{open.map(i=><div key={i.id} style={row}><span>{i.category==='maintenance'?<Wrench size={17}/>:<MessageSquare size={17}/>}</span><div><b>{i.summary}</b><div style={muted}>{i.property} · {i.assignee} · {i.priority}</div></div></div>)}</section>
     <section style={card}><h2>Property health</h2>{props.map(p=><div key={p.id} style={row}><span>{p.review?<AlertTriangle size={17}/>:<CheckCircle2 size={17}/>}</span><div style={{flex:1}}><b>{p.name}</b><div style={muted}>{p.city} · {p.review?'Needs information review':'All tracked fields present'}</div></div><strong>{p.score}%</strong></div>)}</section>
    </div>
-   <section style={{...card,marginTop:18}}><h2>Ask RezAI</h2><p style={muted}>Ask about check-ins, maintenance, property information, or operations triage.</p><div style={{display:'flex',gap:8}}><input value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&ask()} placeholder="Who is checking out tomorrow?" style={{flex:1,padding:13,border:'1px solid #d9d4ca',borderRadius:8}}/><button onClick={ask} style={{background:'#14313b',color:'#fff',border:0,borderRadius:8,padding:'0 18px'}}>{loading?'…':'Ask'}</button></div>{reply&&<pre style={{whiteSpace:'pre-wrap',background:'#eef5f2',padding:15,borderRadius:8,marginTop:14}}>{reply}</pre>}</section>
+   <section style={{...card,marginTop:18}}><h2>Ask RezAI</h2><p style={muted}>Ask about check-ins, maintenance, property information, or operations triage.</p><div style={{display:'flex',gap:8}}><input value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&ask()} placeholder="Try: who's checking out tomorrow? · booking 12345 · daily briefing" style={{flex:1,padding:13,border:'1px solid #d9d4ca',borderRadius:8}}/><button onClick={ask} style={{background:'#14313b',color:'#fff',border:0,borderRadius:8,padding:'0 18px'}}>{loading?'…':'Ask'}</button></div>{reply&&<div style={{whiteSpace:'pre-wrap',background:'#eef5f2',padding:15,borderRadius:8,marginTop:14,fontSize:14,lineHeight:1.6}}><Rich text={reply}/></div>}</section>
    <footer style={{marginTop:24,fontSize:10,color:'#899397'}}>RezAI · Portfolio build · Human approval remains required before operational actions</footer>
   </div>
  </main>

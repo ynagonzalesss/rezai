@@ -2,7 +2,12 @@
 // Field access is deliberately tolerant: OwnerRez payloads vary by account/channel.
 
 export type Fetcher = (path: string) => Promise<any>;
+export const OR = 'https://app.ownerrez.com';
+export const bookingUrl = (id: string) => `${OR}/bookings/${id}`;
+export const guestUrl = (id: string) => `${OR}/guests/${id}`;
+export const propertyUrl = (id: string) => `${OR}/properties/${id}`;
 export type Booking = {
+  propertyId: string; guestId: string; contact: string;
   id: string; property: string; guest: string;
   arrival: string; departure: string; checkIn: string; checkOut: string;
   status: string; cancelled: boolean; nights: number;
@@ -36,14 +41,16 @@ export async function loadBookings(get: Fetcher, from: string, to: string) {
   }
   const real = raw.filter(b => !b.is_block);
   // Names: use an embedded guest object when present, otherwise look guests up by id.
-  const guestName = (g: any) => g ? (g.name || [g.first_name, g.last_name].filter(Boolean).join(' ') || '') : '';
+  const guestName = (g: any) => (g ? (g.name || [g.first_name, g.last_name].filter(Boolean).join(' ') || '') : '').replace(/[\[\]()*]/g, '');
   const need = [...new Set(real.filter(b => !guestName(b.guest) && b.guest_id).map(b => String(b.guest_id)))].slice(0, 60);
-  const fetched = new Map<string, string>();
-  await Promise.all(need.map(async id => { try { fetched.set(id, guestName(await get('/guests/' + id))); } catch {} }));
-  return real.map((b): Booking => {
+  const fetched = new Map<string, string>(); const contacts = new Map<string, string>();
+  const contactOf = (g: any) => { const ph = (g?.phones || g?.phone_numbers || []).map((x: any) => x?.number || x?.phone || x).filter((x: any) => typeof x === 'string'); const em = (g?.email_addresses || g?.emails || []).map((x: any) => x?.address || x?.email || x).filter((x: any) => typeof x === 'string'); return [...ph, ...em, g?.email, g?.phone].filter((x: any) => typeof x === 'string' && x).join(' · '); };
+  await Promise.all(need.map(async id => { try { const g = await get('/guests/' + id); fetched.set(id, guestName(g)); contacts.set(id, contactOf(g)); } catch {} }));
+  const out = real.map((b): Booking => {
     const status = String(b.status || '').toLowerCase();
     const arrival = day10(b.arrival), departure = day10(b.departure);
     return {
+      propertyId: String(b.property_id ?? ''), guestId: String(b.guest_id ?? ''), contact: contacts.get(String(b.guest_id)) || contactOf(b.guest),
       id: String(b.id), property: names.get(String(b.property_id)) || b.property?.name || 'Property ' + b.property_id,
       guest: guestName(b.guest) || fetched.get(String(b.guest_id)) || 'Guest (name not on file)',
       arrival, departure, checkIn: String(b.check_in || '').trim(), checkOut: String(b.check_out || '').trim(),
@@ -54,6 +61,8 @@ export async function loadBookings(get: Fetcher, from: string, to: string) {
       updated: day10(b.updated_utc), notes: String(b.notes || '').slice(0, 160),
     };
   });
+  (out as any).props = [...names.entries()].map(([id, name]) => ({ id, name }));
+  return out;
 }
 
 // ---------- understanding the question ----------
@@ -85,11 +94,17 @@ export type Intent =
   | { kind: 'booking'; id: string }
   | { kind: 'cancelled' } | { kind: 'cancel_request' }
   | { kind: 'departures' } | { kind: 'arrivals' } | { kind: 'staying' }
+  | { kind: 'turnover' } | { kind: 'vacant' } | { kind: 'balance' } | { kind: 'briefing' } | { kind: 'inquiries' }
   | { kind: 'guest'; name: string } | { kind: 'help' };
 
 export function parseIntent(m: string): Intent {
   const bid = m.match(/(?:booking|reservation|confirmation|res)\s*(?:id|number|no\.?|#)?\s*[:#]?\s*(\d{4,})/) || m.match(/#(\d{4,})/);
   if (bid) return { kind: 'booking', id: bid[1] };
+  if (/inquir|\bleads?\b/.test(m)) return { kind: 'inquiries' };
+  if (/turnover|same.?day|back.?to.?back/.test(m)) return { kind: 'turnover' };
+  if (/vacan|empty|unbooked|not booked|gap nights|which (properties|homes|houses).*(free|open|available)/.test(m)) return { kind: 'vacant' };
+  if (/balance|unpaid|owes?\b|outstanding|payment due|haven.?t paid/.test(m)) return { kind: 'balance' };
+  if (/briefing|brief me|overview|rundown|what.?s happening|daily summary|summary for/.test(m)) return { kind: 'briefing' };
   if (/cancel/.test(m) && /request|asking|wants? to|want to/.test(m)) return { kind: 'cancel_request' };
   if (/cancel/.test(m)) return { kind: 'cancelled' };
   if (/check(ing|s)?[\s-]?out|depart|leaving|leave\b|move.?out/.test(m)) return { kind: 'departures' };
@@ -103,7 +118,7 @@ export function parseIntent(m: string): Intent {
 // ---------- answering ----------
 const money = (n: number | null) => (n == null ? '' : '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 }));
 function line(b: Booking, withDates = true) {
-  const parts = [`${b.guest}`, b.property, `#${b.id}`];
+  const parts = [b.guestId ? `[${b.guest}](${guestUrl(b.guestId)})` : b.guest, b.propertyId ? `[${b.property}](${propertyUrl(b.propertyId)})` : b.property, `[#${b.id}](${bookingUrl(b.id)})`];
   if (withDates) parts.push(`${nice(b.arrival)}${b.checkIn ? ' ' + b.checkIn : ''} → ${nice(b.departure)}${b.checkOut ? ' ' + b.checkOut : ''} (${b.nights} night${b.nights === 1 ? '' : 's'})`);
   if (b.cancelled) parts.push('CANCELLED' + (b.updated ? ' (last updated ' + b.updated + ')' : ''));
   if (b.balance) parts.push('balance due ' + money(b.balance));
@@ -114,7 +129,7 @@ const by = (a: Booking, b: Booking) => a.arrival.localeCompare(b.arrival) || a.g
 export async function answer(get: Fetcher, message: string, now = today()): Promise<{ reply: string; verified: boolean }> {
   const m = message.toLowerCase();
   const intent = parseIntent(m);
-  if (intent.kind === 'help') return { verified: false, reply: 'With live OwnerRez data I can answer:\n• Who is checking in / checking out today, tomorrow, on a date, or this week\n• Who is staying tonight\n• Booking details by ID — "booking 12345"\n• Find a guest — "find Smith"\n• Cancelled bookings — "cancelled bookings this week"\nI can also triage maintenance and guest concerns.' };
+  if (intent.kind === 'help') return { verified: false, reply: 'With live OwnerRez data I can answer:\n• Who is checking in / checking out today, tomorrow, on a date, or this week\n• Who is staying tonight\n• Booking details by ID — "booking 12345"\n• Find a guest — "find Smith"\n• Cancelled bookings — "cancelled bookings this week"\n• Same-day turnovers, vacant properties tonight, balances due, latest inquiries, and a daily briefing\n• Listing descriptions, amenities and a template audit\n• Add "contact" to a booking question for the guest\'s phone/email\nI can also triage maintenance and guest concerns.' };
 
   if (intent.kind === 'cancel_request') {
     return { verified: false, reply: 'OwnerRez\'s API doesn\'t expose guest cancellation requests, since those arrive as messages or channel notices. Here are the most recently cancelled bookings:\n' + (await answer(get, 'cancelled bookings', now)).reply };
@@ -125,6 +140,7 @@ export async function answer(get: Fetcher, message: string, now = today()): Prom
   const lookBack = addDays(when.from, -90);
   let from = lookBack, to = addDays(when.to, 1);
   if (intent.kind === 'booking' || intent.kind === 'guest') { from = addDays(now, -365); to = addDays(now, 540); }
+  if (intent.kind === 'balance') { from = addDays(now, -30); to = addDays(now, 120); }
   if (intent.kind === 'cancelled') { from = addDays(now, -90); to = addDays(now, 365); }
   const all = await loadBookings(get, from, to);
   const active = all.filter(b => !b.cancelled);
@@ -135,10 +151,40 @@ export async function answer(get: Fetcher, message: string, now = today()): Prom
   };
 
   switch (intent.kind) {
+    case 'inquiries': {
+      const inq = list(await get('/inquiries?limit=50'));
+      const names = new Map<string, string>(((all as any).props || []).map((p: any) => [p.id, p.name]));
+      const rows = inq.sort((a: any, b: any) => String(b.received_utc || '').localeCompare(String(a.received_utc || ''))).slice(0, 15);
+      return { verified: true, reply: rows.length ? `Latest inquiries (${rows.length}):\n` + rows.map((q: any) => `• [${names.get(String(q.property_id)) || 'Property ' + q.property_id}](${propertyUrl(String(q.property_id))}) — ${day10(q.arrival) ? nice(day10(q.arrival)) + ' → ' + nice(day10(q.departure)) : 'dates not given'} — ${q.status || 'status unknown'} — received ${day10(q.received_utc)} — [open inquiry](${OR}/inquiries/${q.id})`).join('\n') : 'No inquiries found.' };
+    }
+    case 'turnover': {
+      const d = when.from; const dep = prop(active.filter(b => b.departure === d)); const arr = active.filter(b => b.arrival === d);
+      const rows = dep.map(o => ({ o, i: arr.find(a => a.propertyId === o.propertyId) })).filter(x => x.i);
+      return { verified: true, reply: rows.length ? `Same-day turnovers ${when.label}:\n` + rows.map(({ o, i }) => `• [${o.property}](${propertyUrl(o.propertyId)}) — out: ${o.guest} ${o.checkOut || ''} [#${o.id}](${bookingUrl(o.id)}) → in: ${i!.guest} ${i!.checkIn || ''} [#${i!.id}](${bookingUrl(i!.id)})`).join('\n') : `No same-day turnovers ${when.label}.` };
+    }
+    case 'vacant': {
+      const d = when.from; const busy = new Set(active.filter(b => b.arrival <= d && b.departure > d).map(b => b.propertyId));
+      const props: { id: string; name: string }[] = (all as any).props || [];
+      const free = props.filter(p => !busy.has(p.id));
+      return { verified: true, reply: `Night of ${nice(d)}: ${props.length - free.length} of ${props.length} properties booked.\n` + (free.length ? `Vacant (${free.length}):\n` + free.map(p => `• [${p.name}](${propertyUrl(p.id)})`).join('\n') : 'Nothing vacant.') };
+    }
+    case 'balance': {
+      const r = prop(active.filter(b => (b.balance || 0) > 0 && b.departure >= now)).sort((a, b) => a.arrival.localeCompare(b.arrival)).slice(0, 25);
+      const sum = r.reduce((t, b) => t + (b.balance || 0), 0);
+      return { verified: true, reply: r.length ? `Upcoming and current bookings with a balance due (${r.length}, ${money(sum)} total):\n` + r.map(b => line(b)).join('\n') : 'No active bookings show a balance due.' };
+    }
+    case 'briefing': {
+      const d = when.from; const A = prop(active.filter(b => b.arrival === d)), D = prop(active.filter(b => b.departure === d)), S = prop(active.filter(b => b.arrival < d && b.departure > d));
+      const turn = D.filter(o => A.some(a => a.propertyId === o.propertyId)).length;
+      const canc = all.filter(b => b.cancelled && b.updated >= addDays(now, -2)).length;
+      const bal = active.filter(b => (b.balance || 0) > 0 && b.arrival >= d && b.arrival <= addDays(d, 7)).length;
+      return { verified: true, reply: [`Briefing for ${when.label}:`, `• ${A.length} check-in${A.length === 1 ? '' : 's'}${A.length ? ': ' + A.map(b => `[${b.guest}](${bookingUrl(b.id)})`).join(', ') : ''}`, `• ${D.length} check-out${D.length === 1 ? '' : 's'}${D.length ? ': ' + D.map(b => `[${b.guest}](${bookingUrl(b.id)})`).join(', ') : ''}`, `• ${turn} same-day turnover${turn === 1 ? '' : 's'}`, `• ${S.length} guest${S.length === 1 ? '' : 's'} staying through`, `• ${canc} booking${canc === 1 ? '' : 's'} cancelled or changed in the last 2 days`, `• ${bal} arriving within 7 days with a balance due`].join('\n') };
+    }
     case 'booking': {
       const b = all.find(x => x.id === intent.id);
       if (!b) return { verified: true, reply: `I don't see booking #${intent.id} in OwnerRez (searched the last year and next 18 months).` };
-      return { verified: true, reply: [`Booking #${b.id}${b.cancelled ? ' — CANCELLED' : ''}`, `Guest: ${b.guest}`, `Property: ${b.property}`, `Check-in: ${nice(b.arrival)}${b.checkIn ? ' at ' + b.checkIn : ''}`, `Check-out: ${nice(b.departure)}${b.checkOut ? ' at ' + b.checkOut : ''} (${b.nights} nights)`, `Status: ${b.status || 'unknown'}${b.updated ? ' · last updated ' + b.updated : ''}`, b.adults != null ? `Guests: ${b.adults} adult${b.adults === 1 ? '' : 's'}${b.children ? ', ' + b.children + ' children' : ''}` : '', b.total != null ? `Total: ${money(b.total)}${b.balance != null ? ' · balance due ' + money(b.balance) : ''}` : '', b.notes ? 'Notes: ' + b.notes : ''].filter(Boolean).join('\n') };
+      const wantContact = /contact|phone|email|number|reach/.test(m);
+      return { verified: true, reply: [`[Booking #${b.id}](${bookingUrl(b.id)})${b.cancelled ? ' — CANCELLED' : ''}`, `Guest: ${b.guestId ? `[${b.guest}](${guestUrl(b.guestId)})` : b.guest}`, wantContact ? `Contact: ${b.contact || 'none on file'}` : '', `Property: ${b.propertyId ? `[${b.property}](${propertyUrl(b.propertyId)})` : b.property}`, `Check-in: ${nice(b.arrival)}${b.checkIn ? ' at ' + b.checkIn : ''}`, `Check-out: ${nice(b.departure)}${b.checkOut ? ' at ' + b.checkOut : ''} (${b.nights} nights)`, `Status: ${b.status || 'unknown'}${b.updated ? ' · last updated ' + b.updated : ''}`, b.adults != null ? `Guests: ${b.adults} adult${b.adults === 1 ? '' : 's'}${b.children ? ', ' + b.children + ' children' : ''}` : '', b.total != null ? `Total: ${money(b.total)}${b.balance != null ? ' · balance due ' + money(b.balance) : ''}` : '', b.notes ? 'Notes: ' + b.notes : ''].filter(Boolean).join('\n') };
     }
     case 'guest': {
       const q = intent.name.toLowerCase();
