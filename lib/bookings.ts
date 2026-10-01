@@ -112,7 +112,8 @@ export function parseIntent(m: string): Intent {
   if (/check(ing|s)?[\s-]?in\b|arriv|coming in|check-?ins?/.test(m)) return { kind: 'arrivals' };
   if (/staying|in.?house|currently|tonight|who'?s here|occupied/.test(m)) return { kind: 'staying' };
   const nm = m.match(/(?:find|search|lookup|look up|booking for|reservation for|guest|named?)\s+(?:for\s+)?([a-z][a-z'’.-]+(?:\s+[a-z][a-z'’.-]+)?)/);
-  if (nm && !/^(arrivals?|departures?|tomorrow|today|tonight)$/.test(nm[1])) return { kind: 'guest', name: nm[1].trim() };
+  const nmName = nm ? nm[1].trim().replace(/^((is|are|was|the|a|an|at|in|on|for|of|to|from|who|whos|staying|stays?)\s+)+/, '').trim() : '';
+  if (nm && nmName.length > 2 && !/^(arrivals?|departures?|tomorrow|today|tonight|the|this|that|there)$/.test(nmName)) return { kind: 'guest', name: nmName };
   return { kind: 'help' };
 }
 
@@ -127,7 +128,7 @@ function line(b: Booking, withDates = true) {
 }
 const by = (a: Booking, b: Booking) => a.arrival.localeCompare(b.arrival) || a.guest.localeCompare(b.guest);
 
-export async function answer(get: Fetcher, message: string, now = today()): Promise<{ reply: string; verified: boolean }> {
+export async function answer(get: Fetcher, message: string, now = today()): Promise<{ reply: string; verified: boolean; fallthrough?: boolean }> {
   const m = message.toLowerCase();
   const intent = parseIntent(m);
   if (intent.kind === 'help') return { verified: false, reply: 'With live OwnerRez data I can answer:\n• Who is checking in / checking out today, tomorrow, on a date, or this week\n• Who is staying tonight\n• Booking details by ID — "booking 12345"\n• Find a guest — "find Smith"\n• Cancelled bookings — "cancelled bookings this week"\n• "What happened today" — new bookings, cancellations, changes, check-ins/outs and inquiries\n• Same-day turnovers, vacant properties tonight, balances due, latest inquiries, and a daily briefing\n• Listing descriptions, amenities and a template audit\n• Add "contact" to a booking question for the guest\'s phone/email\nI can also triage maintenance and guest concerns.' };
@@ -147,9 +148,10 @@ export async function answer(get: Fetcher, message: string, now = today()): Prom
   const all = await loadBookings(get, from, to);
   const active = all.filter(b => !b.cancelled);
   const hdr = (s: string) => s;
-  const prop = (list: Booking[]) => {
-    const hit = [...new Set(list.map(b => b.property))].find(p => p.length > 3 && m.includes(p.toLowerCase().split(/[–-]/)[0].trim()));
-    return hit ? list.filter(b => b.property === hit) : list;
+  const prop = (rows: Booking[]) => {
+    const names: string[] = ((all as any).props || []).map((p: any) => String(p.name));
+    const hit = names.find(n => n.length > 3 && m.includes(n.toLowerCase())) || names.find(n => { const w = n.toLowerCase().split(/[\s–-]+/).filter(x => x.length > 3); return w.length > 0 && w.slice(0, 2).every(x => m.includes(x)) && names.filter(o => o.toLowerCase().includes(w[0])).length === 1; });
+    return hit ? rows.filter(b => b.property === hit) : rows;
   };
 
   switch (intent.kind) {
@@ -210,7 +212,16 @@ export async function answer(get: Fetcher, message: string, now = today()): Prom
     case 'guest': {
       const q = intent.name.toLowerCase();
       const hits = all.filter(b => b.guest.toLowerCase().includes(q)).sort(by).slice(0, 15);
-      return { verified: true, reply: hits.length ? `Bookings matching "${intent.name}":\n` + hits.map(b => line(b)).join('\n') : `No bookings found for "${intent.name}".` };
+      if (hits.length) return { verified: true, reply: `Bookings matching "${intent.name}":\n` + hits.map(b => line(b)).join('\n') };
+      // Not a guest: maybe a property name ("who is at Willow").
+      const pr = ((all as any).props || []).filter((p: any) => String(p.name).toLowerCase().includes(q));
+      if (pr.length) {
+        const ids = new Set(pr.map((p: any) => p.id));
+        const mine = active.filter(b => ids.has(b.propertyId) && b.departure >= now).sort(by).slice(0, 12);
+        const here = mine.filter(b => b.arrival <= now && b.departure > now);
+        return { verified: true, reply: `${pr.map((p: any) => `[${p.name}](${propertyUrl(p.id)})`).join(', ')}\n` + (here.length ? `Staying now:\n${here.map(b => line(b)).join('\n')}\n` : 'No one staying tonight.\n') + (mine.filter(b => !here.includes(b)).length ? `Upcoming:\n${mine.filter(b => !here.includes(b)).map(b => line(b)).join('\n')}` : 'No upcoming bookings in the next year.') };
+      }
+      return { verified: false, fallthrough: true, reply: `No bookings found for "${intent.name}".` };
     }
     case 'cancelled': {
       const recent = prop(all.filter(b => b.cancelled)).sort((a, b) => (b.updated || '').localeCompare(a.updated || '')).slice(0, 20);

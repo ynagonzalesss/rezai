@@ -15,7 +15,7 @@ export async function POST(req:Request){
  if(live&&parseIntent(m).kind!=='help'){
   try{
    const r=await answer(ownerrez,m);
-   return Response.json({reply:r.reply,mode:'ownerrez',verified:r.verified,confidence:r.verified?.98:.8});
+   if(!(r.fallthrough&&geminiEnabled())) return Response.json({reply:r.reply,mode:'ownerrez',verified:r.verified,confidence:r.verified?.98:.8});
   }catch(e){console.error(e);return Response.json({reply:'I couldn\'t reach OwnerRez just now. Please try again in a minute.',mode:'ownerrez',verified:false,confidence:0})}
  }
  if(live&&geminiEnabled()&&!/maintenance|repair|broken|not working/.test(m)){
