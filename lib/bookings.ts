@@ -8,6 +8,7 @@ export const guestUrl = (id: string) => `${OR}/guests/${id}`;
 export const propertyUrl = (id: string) => `${OR}/properties/${id}`;
 export type Booking = {
   propertyId: string; guestId: string; contact: string;
+  channel: string; children2: number | null; infants: number | null; pets: number | null; paid: number | null; checkInEnd: string;
   created: string; id: string; property: string; guest: string;
   arrival: string; departure: string; checkIn: string; checkOut: string;
   status: string; cancelled: boolean; nights: number;
@@ -24,6 +25,7 @@ export function addDays(iso: string, n: number) {
 }
 const nice = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
 const day10 = (v: any) => String(v || '').slice(0, 10);
+export const contactOf = (g: any): string => { const ph = (g?.phones || g?.phone_numbers || []).map((x: any) => x?.number || x?.phone || x).filter((x: any) => typeof x === 'string'); const em = (g?.email_addresses || g?.emails || []).map((x: any) => x?.address || x?.email || x).filter((x: any) => typeof x === 'string'); return [...ph, ...em, g?.email, g?.phone].filter((x: any) => typeof x === 'string' && x).join(' · '); };
 const list = (data: any): any[] => Array.isArray(data) ? data : data?.items || data?.results || data?.data || [];
 
 export async function loadBookings(get: Fetcher, from: string, to: string) {
@@ -44,20 +46,21 @@ export async function loadBookings(get: Fetcher, from: string, to: string) {
   const guestName = (g: any) => (g ? (g.name || [g.first_name, g.last_name].filter(Boolean).join(' ') || '') : '').replace(/[\[\]()*]/g, '');
   const need = [...new Set(real.filter(b => !guestName(b.guest) && b.guest_id).map(b => String(b.guest_id)))].slice(0, 60);
   const fetched = new Map<string, string>(); const contacts = new Map<string, string>();
-  const contactOf = (g: any) => { const ph = (g?.phones || g?.phone_numbers || []).map((x: any) => x?.number || x?.phone || x).filter((x: any) => typeof x === 'string'); const em = (g?.email_addresses || g?.emails || []).map((x: any) => x?.address || x?.email || x).filter((x: any) => typeof x === 'string'); return [...ph, ...em, g?.email, g?.phone].filter((x: any) => typeof x === 'string' && x).join(' · '); };
   await Promise.all(need.map(async id => { try { const g = await get('/guests/' + id); fetched.set(id, guestName(g)); contacts.set(id, contactOf(g)); } catch {} }));
   const out = real.map((b): Booking => {
     const status = String(b.status || '').toLowerCase();
     const arrival = day10(b.arrival), departure = day10(b.departure);
     return {
       propertyId: String(b.property_id ?? ''), guestId: String(b.guest_id ?? ''), contact: contacts.get(String(b.guest_id)) || contactOf(b.guest),
-      created: b.created_utc ? isoDay(new Date(b.created_utc)) : '', id: String(b.id), property: names.get(String(b.property_id)) || b.property?.name || 'Property ' + b.property_id,
+      created: (b.booked_utc || b.created_utc) ? isoDay(new Date(b.booked_utc || b.created_utc)) : '', id: String(b.id), property: names.get(String(b.property_id)) || b.property?.name || b.property?.external_name || 'Property ' + b.property_id,
       guest: guestName(b.guest) || fetched.get(String(b.guest_id)) || 'Guest (name not on file)',
       arrival, departure, checkIn: String(b.check_in || '').trim(), checkOut: String(b.check_out || '').trim(),
       status, cancelled: /cancel/.test(status),
       nights: arrival && departure ? Math.round((Date.parse(departure) - Date.parse(arrival)) / 864e5) : 0,
       adults: b.adults ?? null, children: b.children ?? null,
-      balance: typeof b.balance_due === 'number' ? b.balance_due : null, total: typeof b.total_amount === 'number' ? b.total_amount : null,
+      balance: typeof b.balance_due === 'number' ? b.balance_due : (typeof b.total_amount === 'number' && typeof b.total_paid === 'number' ? Math.max(0, Math.round((b.total_amount - b.total_paid) * 100) / 100) : null),
+      total: typeof b.total_amount === 'number' ? b.total_amount : null, paid: typeof b.total_paid === 'number' ? b.total_paid : null,
+      channel: String(b.listing_site || b.channel || '').trim(), children2: b.children ?? null, infants: b.infants ?? null, pets: b.pets ?? null, checkInEnd: String(b.check_in_end || '').trim(),
       updated: b.updated_utc ? isoDay(new Date(b.updated_utc)) : '', notes: String(b.notes || '').slice(0, 160),
     };
   });
@@ -122,8 +125,9 @@ const money = (n: number | null) => (n == null ? '' : '$' + n.toLocaleString('en
 function line(b: Booking, withDates = true) {
   const parts = [b.guestId ? `[${b.guest}](${guestUrl(b.guestId)})` : b.guest, b.propertyId ? `[${b.property}](${propertyUrl(b.propertyId)})` : b.property, `[#${b.id}](${bookingUrl(b.id)})`];
   if (withDates) parts.push(`${nice(b.arrival)}${b.checkIn ? ' ' + b.checkIn : ''} → ${nice(b.departure)}${b.checkOut ? ' ' + b.checkOut : ''} (${b.nights} night${b.nights === 1 ? '' : 's'})`);
+  if (b.channel) parts.push(b.channel);
   if (b.cancelled) parts.push('CANCELLED' + (b.updated ? ' (last updated ' + b.updated + ')' : ''));
-  if (b.balance) parts.push('balance due ' + money(b.balance));
+  if (b.balance && b.balance > 0.5) parts.push('balance due ' + money(b.balance));
   return '• ' + parts.join(' — ');
 }
 const by = (a: Booking, b: Booking) => a.arrival.localeCompare(b.arrival) || a.guest.localeCompare(b.guest);
@@ -210,7 +214,7 @@ export async function answer(get: Fetcher, message: string, now = today()): Prom
       return { verified: true, reply: `Night of ${nice(d)}: ${props.length - free.length} of ${props.length} properties booked.\n` + (free.length ? `Vacant (${free.length}):\n` + free.map(p => `• [${p.name}](${propertyUrl(p.id)})`).join('\n') : 'Nothing vacant.') };
     }
     case 'balance': {
-      const r = prop(active.filter(b => (b.balance || 0) > 0 && b.departure >= now)).sort((a, b) => a.arrival.localeCompare(b.arrival)).slice(0, 25);
+      const r = prop(active.filter(b => (b.balance || 0) > 0.5 && b.departure >= now)).sort((a, b) => a.arrival.localeCompare(b.arrival)).slice(0, 25);
       const sum = r.reduce((t, b) => t + (b.balance || 0), 0);
       return { verified: true, reply: r.length ? `Upcoming and current bookings with a balance due (${r.length}, ${money(sum)} total):\n` + r.map(b => line(b)).join('\n') : 'No active bookings show a balance due.' };
     }
@@ -225,7 +229,8 @@ export async function answer(get: Fetcher, message: string, now = today()): Prom
       const b = all.find(x => x.id === intent.id);
       if (!b) return { verified: true, reply: `I don't see booking #${intent.id} in OwnerRez (searched the last year and next 18 months).` };
       const wantContact = /contact|phone|email|number|reach/.test(m);
-      return { verified: true, reply: [`[Booking #${b.id}](${bookingUrl(b.id)})${b.cancelled ? ' — CANCELLED' : ''}`, `Guest: ${b.guestId ? `[${b.guest}](${guestUrl(b.guestId)})` : b.guest}`, wantContact ? `Contact: ${b.contact || 'none on file'}` : '', `Property: ${b.propertyId ? `[${b.property}](${propertyUrl(b.propertyId)})` : b.property}`, `Check-in: ${nice(b.arrival)}${b.checkIn ? ' at ' + b.checkIn : ''}`, `Check-out: ${nice(b.departure)}${b.checkOut ? ' at ' + b.checkOut : ''} (${b.nights} nights)`, `Status: ${b.status || 'unknown'}${b.updated ? ' · last updated ' + b.updated : ''}`, b.adults != null ? `Guests: ${b.adults} adult${b.adults === 1 ? '' : 's'}${b.children ? ', ' + b.children + ' children' : ''}` : '', b.total != null ? `Total: ${money(b.total)}${b.balance != null ? ' · balance due ' + money(b.balance) : ''}` : '', b.notes ? 'Notes: ' + b.notes : ''].filter(Boolean).join('\n') };
+      if (wantContact && !b.contact && b.guestId) { try { b.contact = contactOf(await get('/guests/' + b.guestId)); } catch {} }
+      return { verified: true, reply: [`[Booking #${b.id}](${bookingUrl(b.id)})${b.cancelled ? ' — CANCELLED' : ''}`, `Guest: ${b.guestId ? `[${b.guest}](${guestUrl(b.guestId)})` : b.guest}`, wantContact ? `Contact: ${b.contact || 'none on file'}` : '', `Property: ${b.propertyId ? `[${b.property}](${propertyUrl(b.propertyId)})` : b.property}`, `Check-in: ${nice(b.arrival)}${b.checkIn ? ' at ' + b.checkIn : ''}`, `Check-out: ${nice(b.departure)}${b.checkOut ? ' at ' + b.checkOut : ''} (${b.nights} nights)`, `Status: ${b.status || 'unknown'}${b.updated ? ' · last updated ' + b.updated : ''}`, b.channel ? `Booked via: ${b.channel}${b.created ? ' on ' + b.created : ''}` : '', b.adults != null ? `Guests: ${b.adults} adult${b.adults === 1 ? '' : 's'}${b.children2 ? ', ' + b.children2 + ' child' + (b.children2 === 1 ? '' : 'ren') : ''}${b.infants ? ', ' + b.infants + ' infant' + (b.infants === 1 ? '' : 's') : ''}${b.pets ? ', ' + b.pets + ' pet' + (b.pets === 1 ? '' : 's') : ''}` : '', b.checkInEnd ? `Check-in window: ${b.checkIn || '?'} – ${b.checkInEnd}` : '', b.total != null ? `Total: ${money(b.total)}${b.paid != null ? ' · paid ' + money(b.paid) : ''}${b.balance != null ? ' · balance due ' + money(b.balance) : ''}` : '', b.notes ? 'Notes: ' + b.notes : ''].filter(Boolean).join('\n') };
     }
     case 'guest': {
       const q = intent.name.toLowerCase();

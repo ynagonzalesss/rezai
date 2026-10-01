@@ -22,14 +22,14 @@ export async function geminiAnswer(get: Fetcher, message: string, history: { q: 
   const names = new Map<string, string>();
   const tok = (b: { guestId: string; guest: string }) => { const k = 'GUEST_' + (b.guestId || b.guest.length); names.set(k, b.guest); return k; };
   const lines = bookings.sort((a, b) => a.arrival.localeCompare(b.arrival)).slice(0, 1500).map(b =>
-    `#${b.id} | ${tok(b)} | ${b.property} | ${b.arrival} -> ${b.departure} (${b.nights}n)${b.checkIn ? ' in ' + b.checkIn : ''}${b.checkOut ? ' out ' + b.checkOut : ''} | ${b.cancelled ? 'CANCELLED' : b.status} | ${b.adults ?? '?'}a${b.children ? '+' + b.children + 'c' : ''} | total ${b.total ?? '?'} | due ${b.balance ?? '?'} | created ${b.created} | updated ${b.updated}`);
+    `#${b.id} | ${tok(b)} | ${b.property} | ${b.arrival} -> ${b.departure} (${b.nights}n)${b.checkIn ? ' in ' + b.checkIn : ''}${b.checkOut ? ' out ' + b.checkOut : ''} | ${b.cancelled ? 'CANCELLED' : b.status} | ${b.adults ?? '?'}a${b.children2 ? '+' + b.children2 + 'c' : ''}${b.infants ? '+' + b.infants + 'i' : ''}${b.pets ? ' pets ' + b.pets : ''} | via ${b.channel || '?'} | total ${b.total ?? '?'} paid ${b.paid ?? '?'} due ${b.balance ?? '?'} | created ${b.created} | updated ${b.updated}`);
   let listing = '';
   for (const p of pr.named.slice(0, 2)) {
     const c = await content(get, p);
     listing += `\n[LISTING ${c.name}] headline: ${c.headline}\nsummary: ${c.summary}\ndescription: ${c.description.slice(0, 4000)}\nrules: ${c.rules.slice(0, 1500)}\namenities: ${c.amenities.join(', ')}`;
   }
   const data = `TODAY: ${now}\nPROPERTIES (${props.length}):\n` + props.map(p => `${p.name || p.external_name} | ${p.bedrooms ?? '?'}bd ${p.bathrooms ?? '?'}ba sleeps ${p.max_guests ?? '?'}${p.active === false ? ' inactive' : ''}`).join('\n') +
-    `\n\nBOOKINGS from ${addDays(now, -21)} to ${addDays(now, 120)} (id | guest | property | stay | status | guests | total | balance due | created | updated):\n` + lines.join('\n') + listing;
+    `\n\nBOOKINGS from ${addDays(now, -21)} to ${addDays(now, 120)} (id | guest | property | stay | status | guests | booking channel | money | created | updated):\n` + lines.join('\n') + listing;
 
   const contents = [
     ...history.slice(-4).flatMap(h => [{ role: 'user', parts: [{ text: h.q }] }, { role: 'model', parts: [{ text: h.a.slice(0, 1500) }] }]),
