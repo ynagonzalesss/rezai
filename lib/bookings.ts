@@ -97,12 +97,13 @@ export type Intent =
   | { kind: 'booking'; id: string }
   | { kind: 'cancelled' } | { kind: 'cancel_request' }
   | { kind: 'departures' } | { kind: 'arrivals' } | { kind: 'staying' }
-  | { kind: 'activity' } | { kind: 'turnover' } | { kind: 'vacant' } | { kind: 'balance' } | { kind: 'briefing' } | { kind: 'inquiries' }
+  | { kind: 'channels' } | { kind: 'activity' } | { kind: 'turnover' } | { kind: 'vacant' } | { kind: 'balance' } | { kind: 'briefing' } | { kind: 'inquiries' }
   | { kind: 'guest'; name: string } | { kind: 'help' };
 
 export function parseIntent(m: string): Intent {
   const bid = m.match(/(?:booking|reservation|confirmation|res)\s*(?:id|number|no\.?|#)?\s*[:#]?\s*(\d{4,})/) || m.match(/#(\d{4,})/);
   if (bid) return { kind: 'booking', id: bid[1] };
+  if (/by channel|per channel|channel breakdown|which channels|booking sources?|where (are|do) (our )?bookings come/.test(m)) return { kind: 'channels' };
   if (/what happened|activity|end of day|recap|what.?s new|new bookings?|booked today|today.?s (summary|log|report)|summary of (the |today|my )?day|day summary|log for/.test(m)) return { kind: 'activity' };
   if (/inquir|\bleads?\b/.test(m)) return { kind: 'inquiries' };
   if (/turnover|same.?day|back.?to.?back/.test(m)) return { kind: 'turnover' };
@@ -153,7 +154,7 @@ export async function answer(get: Fetcher, message: string, now = today()): Prom
     const raw = await get(`/${dbg[1]}s/${dbg[2]}`);
     return { verified: true, reply: `Fields OwnerRez returns for ${dbg[1]} ${dbg[2]} (values shown only for numbers, dates and statuses; guest text is hidden):\n` + shape(raw, dbg[1] === 'booking') };
   }
-  if (intent.kind === 'help') return { verified: false, reply: 'With live OwnerRez data I can answer:\n• Who is checking in / checking out today, tomorrow, on a date, or this week\n• Who is staying tonight\n• Booking details by ID — "booking 12345"\n• Find a guest — "find Smith"\n• Cancelled bookings — "cancelled bookings this week"\n• "What happened today" — new bookings, cancellations, changes, check-ins/outs and inquiries\n• Same-day turnovers, vacant properties tonight, balances due, latest inquiries, and a daily briefing\n• Listing descriptions, amenities and a template audit\n• "debug booking 12345" shows which fields OwnerRez returns (for troubleshooting)\n• Add "contact" to a booking question for the guest\'s phone/email\nI can also triage maintenance and guest concerns.' };
+  if (intent.kind === 'help') return { verified: false, reply: 'With live OwnerRez data I can answer:\n• Who is checking in / checking out today, tomorrow, on a date, or this week\n• Who is staying tonight\n• Booking details by ID — "booking 12345"\n• Find a guest — "find Smith"\n• Cancelled bookings — "cancelled bookings this week"\n• "What happened today" — new bookings, cancellations, changes, check-ins/outs and inquiries\n• Add a channel to any question: "Airbnb check-ins this week", "Vrbo check-outs tomorrow", "direct bookings today", or "bookings by channel"\n• Same-day turnovers, vacant properties tonight, balances due, latest inquiries, and a daily briefing\n• Listing descriptions, amenities and a template audit\n• "debug booking 12345" shows which fields OwnerRez returns (for troubleshooting)\n• Add "contact" to a booking question for the guest\'s phone/email\nI can also triage maintenance and guest concerns.' };
 
   if (intent.kind === 'cancel_request') {
     return { verified: false, reply: 'OwnerRez\'s API doesn\'t expose guest cancellation requests, since those arrive as messages or channel notices. Here are the most recently cancelled bookings:\n' + (await answer(get, 'cancelled bookings', now)).reply };
@@ -170,13 +171,29 @@ export async function answer(get: Fetcher, message: string, now = today()): Prom
   const all = await loadBookings(get, from, to);
   const active = all.filter(b => !b.cancelled);
   const hdr = (s: string) => s;
+  // Channel words in the question (works even if that channel has no bookings in the window).
+  const known = [...new Set([...all.map(b => b.channel.toLowerCase()).filter(Boolean), 'airbnb', 'vrbo', 'booking.com', 'expedia', 'google', 'wander'])];
+  const wantDirect = /\b(direct|website|own site|our site|azdesertvacations|manual)\b/.test(m);
+  const keys = known.filter(k => m.includes(k) || (k === 'booking.com' && /bookingcom/.test(m)));
+  const chanOk = (c: string) => { const lc = c.toLowerCase(); return keys.some(k => lc.includes(k)) || (wantDirect && /azdesertvacations|direct|manual|website/.test(lc)); };
+  const chan = [...new Set([...keys, ...(wantDirect ? ['direct'] : [])])];
+  if (chan.length) when.label += ` (${chan.join(' + ')} only)`;
   const prop = (rows: Booking[]) => {
     const names: string[] = ((all as any).props || []).map((p: any) => String(p.name));
     const hit = names.find(n => n.length > 3 && m.includes(n.toLowerCase())) || names.find(n => { const w = n.toLowerCase().split(/[\s–-]+/).filter(x => x.length > 3); return w.length > 0 && w.slice(0, 2).every(x => m.includes(x)) && names.filter(o => o.toLowerCase().includes(w[0])).length === 1; });
-    return hit ? rows.filter(b => b.property === hit) : rows;
+    const byProp = hit ? rows.filter(b => b.property === hit) : rows;
+    return chan.length ? byProp.filter(b => chanOk(b.channel)) : byProp;
   };
 
   switch (intent.kind) {
+    case 'channels': {
+      const d0 = when.from, d1 = /today|tomorrow|week|\bon\b|\d/.test(m) ? when.to : addDays(now, 30);
+      const rows = active.filter(b => b.arrival >= d0 && b.arrival <= d1);
+      const by2 = new Map<string, { n: number; nights: number; total: number }>();
+      rows.forEach(b => { const k = b.channel || 'Unknown'; const v = by2.get(k) || { n: 0, nights: 0, total: 0 }; v.n++; v.nights += b.nights; v.total += b.total || 0; by2.set(k, v); });
+      const out = [...by2.entries()].sort((a, b) => b[1].n - a[1].n);
+      return { verified: true, reply: out.length ? `Bookings arriving ${nice(d0)} – ${nice(d1)} by channel (${rows.length} total):\n` + out.map(([k, v]) => `• ${k}: ${v.n} booking${v.n === 1 ? '' : 's'}, ${v.nights} nights, ${money(v.total)}`).join('\n') : 'No bookings arriving in that period.' };
+    }
     case 'activity': {
       const d = when.from, e = when.to; const inR = (x: string) => x >= d && x <= e;
       const all2 = prop(all);
