@@ -128,10 +128,28 @@ function line(b: Booking, withDates = true) {
 }
 const by = (a: Booking, b: Booking) => a.arrival.localeCompare(b.arrival) || a.guest.localeCompare(b.guest);
 
+function shape(o: any, showValues: boolean): string {
+  const rows: string[] = [];
+  for (const k of Object.keys(o || {}).sort()) {
+    const v = o[k];
+    if (v === null || v === undefined) rows.push(`${k}: null`);
+    else if (typeof v === 'number' || typeof v === 'boolean') rows.push(`${k}: ${showValues ? v : typeof v}`);
+    else if (typeof v === 'string') rows.push(`${k}: ${showValues && /date|utc|status|type|source|site|channel|check|arrival|departure|currency/i.test(k) ? v.slice(0, 40) : '(text)'}`);
+    else if (Array.isArray(v)) rows.push(`${k}: list of ${v.length}${v[0] && typeof v[0] === 'object' ? ' {' + Object.keys(v[0]).join(', ') + '}' : ''}`);
+    else rows.push(`${k}: object {${Object.keys(v).join(', ')}}`);
+  }
+  return rows.join('\n');
+}
+
 export async function answer(get: Fetcher, message: string, now = today()): Promise<{ reply: string; verified: boolean; fallthrough?: boolean }> {
   const m = message.toLowerCase();
   const intent = parseIntent(m);
-  if (intent.kind === 'help') return { verified: false, reply: 'With live OwnerRez data I can answer:\n• Who is checking in / checking out today, tomorrow, on a date, or this week\n• Who is staying tonight\n• Booking details by ID — "booking 12345"\n• Find a guest — "find Smith"\n• Cancelled bookings — "cancelled bookings this week"\n• "What happened today" — new bookings, cancellations, changes, check-ins/outs and inquiries\n• Same-day turnovers, vacant properties tonight, balances due, latest inquiries, and a daily briefing\n• Listing descriptions, amenities and a template audit\n• Add "contact" to a booking question for the guest\'s phone/email\nI can also triage maintenance and guest concerns.' };
+  const dbg = m.match(/debug\s+(booking|guest)\s*#?\s*(\d+)/);
+  if (dbg) {
+    const raw = await get(`/${dbg[1]}s/${dbg[2]}`);
+    return { verified: true, reply: `Fields OwnerRez returns for ${dbg[1]} ${dbg[2]} (values shown only for numbers, dates and statuses; guest text is hidden):\n` + shape(raw, dbg[1] === 'booking') };
+  }
+  if (intent.kind === 'help') return { verified: false, reply: 'With live OwnerRez data I can answer:\n• Who is checking in / checking out today, tomorrow, on a date, or this week\n• Who is staying tonight\n• Booking details by ID — "booking 12345"\n• Find a guest — "find Smith"\n• Cancelled bookings — "cancelled bookings this week"\n• "What happened today" — new bookings, cancellations, changes, check-ins/outs and inquiries\n• Same-day turnovers, vacant properties tonight, balances due, latest inquiries, and a daily briefing\n• Listing descriptions, amenities and a template audit\n• "debug booking 12345" shows which fields OwnerRez returns (for troubleshooting)\n• Add "contact" to a booking question for the guest\'s phone/email\nI can also triage maintenance and guest concerns.' };
 
   if (intent.kind === 'cancel_request') {
     return { verified: false, reply: 'OwnerRez\'s API doesn\'t expose guest cancellation requests, since those arrive as messages or channel notices. Here are the most recently cancelled bookings:\n' + (await answer(get, 'cancelled bookings', now)).reply };
