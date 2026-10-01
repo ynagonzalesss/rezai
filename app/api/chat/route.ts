@@ -1,9 +1,16 @@
 import {issues,properties} from '@/lib/demo';
 import {liveAllowed,ownerrez} from '@/lib/ownerrez';
 import {answer,parseIntent} from '@/lib/bookings';
+import {isListingQuestion,listingAnswer} from '@/lib/listings';
 
 export async function POST(req:Request){
  const live=liveAllowed(req); let body:any={}; try{body=await req.json()}catch{}; const m=String(body.message||'').toLowerCase();
+ if(live&&isListingQuestion(m)){
+  try{
+   const r=await listingAnswer(ownerrez,m);
+   return Response.json({reply:r.reply,mode:'ownerrez',verified:r.verified,confidence:r.verified?.95:.7});
+  }catch(e){console.error(e);return Response.json({reply:'I couldn\'t reach OwnerRez just now. Please try again in a minute.',mode:'ownerrez',verified:false,confidence:0})}
+ }
  if(live&&parseIntent(m).kind!=='help'){
   try{
    const r=await answer(ownerrez,m);
