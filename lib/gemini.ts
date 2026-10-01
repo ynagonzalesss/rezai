@@ -6,6 +6,8 @@ import { load as loadProps, content } from './listings';
 
 export const geminiEnabled = () => !!process.env.GEMINI_API_KEY;
 const MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+const FALLBACKS = (process.env.GEMINI_FALLBACK_MODELS || 'gemini-2.5-flash,gemini-2.5-flash-lite').split(',').map(x => x.trim()).filter(Boolean);
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 const SYSTEM = `You are RezAI, the operations assistant for a vacation rental team (AZ Desert Vacations).
 Answer ONLY from the DATA block. If the answer is not in the data, say so plainly and name what is missing. Never guess, never invent bookings, guests, prices or policies.
@@ -33,13 +35,19 @@ export async function geminiAnswer(get: Fetcher, message: string, history: { q: 
     ...history.slice(-4).flatMap(h => [{ role: 'user', parts: [{ text: h.q }] }, { role: 'model', parts: [{ text: h.a.slice(0, 1500) }] }]),
     { role: 'user', parts: [{ text: `DATA:\n${data}\n\nQUESTION: ${message}` }] },
   ];
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY! },
-    body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents, generationConfig: { temperature: 0.2, maxOutputTokens: 1200 } }),
-    cache: 'no-store',
-  });
+  const body = JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents, generationConfig: { temperature: 0.2, maxOutputTokens: 1200 } });
+  let res!: Response; let used = '';
+  for (const [i, model] of [MODEL, MODEL, ...FALLBACKS].entries()) {
+    if (i === 1) await sleep(1200);
+    used = model;
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY! }, body, cache: 'no-store',
+    });
+    if (res.ok || ![500, 502, 503, 504, 404].includes(res.status)) break;
+    console.error('Gemini', model, res.status, 'trying next');
+  }
   if (res.status === 429) return { reply: 'Gemini\'s free limit was hit for now. Wait a minute and ask again, or use the built-in questions (briefing, check-ins, balances).', verified: false };
-  if (!res.ok) { console.error('Gemini', res.status, (await res.text()).slice(0, 300)); return { reply: 'The AI model isn\'t responding (status ' + res.status + '). The built-in questions still work.', verified: false }; }
+  if (!res.ok) { console.error('Gemini', used, res.status, (await res.text()).slice(0, 300)); return { reply: 'Google\'s AI model is busy or unavailable right now (status ' + res.status + '). Try again in a minute; the built-in questions still work.', verified: false }; }
   const j: any = await res.json();
   let text: string = (j.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('').trim();
   if (!text) return { reply: 'The AI model returned no answer. Try rephrasing the question.', verified: false };
