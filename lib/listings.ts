@@ -70,6 +70,10 @@ export async function listingAnswer(get: Fetcher, message: string): Promise<{ re
     return { verified: true, reply: (rows.length ? `Template check across ${props.length - blocked} listings. ${rows.length} need attention:\n${rows.sort().join('\n')}` : `All ${props.length - blocked} listings contain every required template block.`) + (blocked ? `\n(${blocked} listings had no readable description.)` : '') };
   }
 
+  if (!named.length && /(list|show|all|which|how many|overview)/.test(m) && /propert|listing|home|house|villa/.test(m) && !wantAudit) {
+    return { verified: true, reply: `Properties (${props.length}):\n` + props.map(p => `• [${p.name || p.external_name}](${OR}/properties/${p.id})${p.bedrooms != null ? ` — ${p.bedrooms} bd` : ''}${p.bathrooms != null ? ` / ${p.bathrooms} ba` : ''}${p.max_guests != null ? ` — sleeps ${p.max_guests}` : ''}${p.active === false ? ' — inactive' : ''}`).join('\n') };
+  }
+
   if (!named.length) {
     return { verified: true, reply: 'Which property? Include its name, e.g. "description for Irma Arrowhead Lakes". Properties I can see:\n' + props.slice(0, 45).map(p => `• [${p.name || p.external_name}](${OR}/properties/${p.id})`).join('\n') };
   }

@@ -8,7 +8,7 @@ export const guestUrl = (id: string) => `${OR}/guests/${id}`;
 export const propertyUrl = (id: string) => `${OR}/properties/${id}`;
 export type Booking = {
   propertyId: string; guestId: string; contact: string;
-  id: string; property: string; guest: string;
+  created: string; id: string; property: string; guest: string;
   arrival: string; departure: string; checkIn: string; checkOut: string;
   status: string; cancelled: boolean; nights: number;
   adults: number | null; children: number | null;
@@ -51,14 +51,14 @@ export async function loadBookings(get: Fetcher, from: string, to: string) {
     const arrival = day10(b.arrival), departure = day10(b.departure);
     return {
       propertyId: String(b.property_id ?? ''), guestId: String(b.guest_id ?? ''), contact: contacts.get(String(b.guest_id)) || contactOf(b.guest),
-      id: String(b.id), property: names.get(String(b.property_id)) || b.property?.name || 'Property ' + b.property_id,
+      created: b.created_utc ? isoDay(new Date(b.created_utc)) : '', id: String(b.id), property: names.get(String(b.property_id)) || b.property?.name || 'Property ' + b.property_id,
       guest: guestName(b.guest) || fetched.get(String(b.guest_id)) || 'Guest (name not on file)',
       arrival, departure, checkIn: String(b.check_in || '').trim(), checkOut: String(b.check_out || '').trim(),
       status, cancelled: /cancel/.test(status),
       nights: arrival && departure ? Math.round((Date.parse(departure) - Date.parse(arrival)) / 864e5) : 0,
       adults: b.adults ?? null, children: b.children ?? null,
       balance: typeof b.balance_due === 'number' ? b.balance_due : null, total: typeof b.total_amount === 'number' ? b.total_amount : null,
-      updated: day10(b.updated_utc), notes: String(b.notes || '').slice(0, 160),
+      updated: b.updated_utc ? isoDay(new Date(b.updated_utc)) : '', notes: String(b.notes || '').slice(0, 160),
     };
   });
   (out as any).props = [...names.entries()].map(([id, name]) => ({ id, name }));
@@ -94,12 +94,13 @@ export type Intent =
   | { kind: 'booking'; id: string }
   | { kind: 'cancelled' } | { kind: 'cancel_request' }
   | { kind: 'departures' } | { kind: 'arrivals' } | { kind: 'staying' }
-  | { kind: 'turnover' } | { kind: 'vacant' } | { kind: 'balance' } | { kind: 'briefing' } | { kind: 'inquiries' }
+  | { kind: 'activity' } | { kind: 'turnover' } | { kind: 'vacant' } | { kind: 'balance' } | { kind: 'briefing' } | { kind: 'inquiries' }
   | { kind: 'guest'; name: string } | { kind: 'help' };
 
 export function parseIntent(m: string): Intent {
   const bid = m.match(/(?:booking|reservation|confirmation|res)\s*(?:id|number|no\.?|#)?\s*[:#]?\s*(\d{4,})/) || m.match(/#(\d{4,})/);
   if (bid) return { kind: 'booking', id: bid[1] };
+  if (/what happened|activity|end of day|recap|what.?s new|new bookings?|booked today|today.?s (summary|log|report)|summary of (the |today|my )?day|day summary|log for/.test(m)) return { kind: 'activity' };
   if (/inquir|\bleads?\b/.test(m)) return { kind: 'inquiries' };
   if (/turnover|same.?day|back.?to.?back/.test(m)) return { kind: 'turnover' };
   if (/vacan|empty|unbooked|not booked|gap nights|which (properties|homes|houses).*(free|open|available)/.test(m)) return { kind: 'vacant' };
@@ -129,7 +130,7 @@ const by = (a: Booking, b: Booking) => a.arrival.localeCompare(b.arrival) || a.g
 export async function answer(get: Fetcher, message: string, now = today()): Promise<{ reply: string; verified: boolean }> {
   const m = message.toLowerCase();
   const intent = parseIntent(m);
-  if (intent.kind === 'help') return { verified: false, reply: 'With live OwnerRez data I can answer:\n• Who is checking in / checking out today, tomorrow, on a date, or this week\n• Who is staying tonight\n• Booking details by ID — "booking 12345"\n• Find a guest — "find Smith"\n• Cancelled bookings — "cancelled bookings this week"\n• Same-day turnovers, vacant properties tonight, balances due, latest inquiries, and a daily briefing\n• Listing descriptions, amenities and a template audit\n• Add "contact" to a booking question for the guest\'s phone/email\nI can also triage maintenance and guest concerns.' };
+  if (intent.kind === 'help') return { verified: false, reply: 'With live OwnerRez data I can answer:\n• Who is checking in / checking out today, tomorrow, on a date, or this week\n• Who is staying tonight\n• Booking details by ID — "booking 12345"\n• Find a guest — "find Smith"\n• Cancelled bookings — "cancelled bookings this week"\n• "What happened today" — new bookings, cancellations, changes, check-ins/outs and inquiries\n• Same-day turnovers, vacant properties tonight, balances due, latest inquiries, and a daily briefing\n• Listing descriptions, amenities and a template audit\n• Add "contact" to a booking question for the guest\'s phone/email\nI can also triage maintenance and guest concerns.' };
 
   if (intent.kind === 'cancel_request') {
     return { verified: false, reply: 'OwnerRez\'s API doesn\'t expose guest cancellation requests, since those arrive as messages or channel notices. Here are the most recently cancelled bookings:\n' + (await answer(get, 'cancelled bookings', now)).reply };
@@ -140,6 +141,7 @@ export async function answer(get: Fetcher, message: string, now = today()): Prom
   const lookBack = addDays(when.from, -90);
   let from = lookBack, to = addDays(when.to, 1);
   if (intent.kind === 'booking' || intent.kind === 'guest') { from = addDays(now, -365); to = addDays(now, 540); }
+  if (intent.kind === 'activity') { from = addDays(when.from, -400); to = addDays(when.to, 540); }
   if (intent.kind === 'balance') { from = addDays(now, -30); to = addDays(now, 120); }
   if (intent.kind === 'cancelled') { from = addDays(now, -90); to = addDays(now, 365); }
   const all = await loadBookings(get, from, to);
@@ -151,6 +153,25 @@ export async function answer(get: Fetcher, message: string, now = today()): Prom
   };
 
   switch (intent.kind) {
+    case 'activity': {
+      const d = when.from, e = when.to; const inR = (x: string) => x >= d && x <= e;
+      const all2 = prop(all);
+      const created = all2.filter(b => inR(b.created) && !b.cancelled).sort((a, b) => a.arrival.localeCompare(b.arrival));
+      const cancelled = all2.filter(b => b.cancelled && inR(b.updated));
+      const changed = all2.filter(b => !b.cancelled && inR(b.updated) && !inR(b.created));
+      const A = all2.filter(b => !b.cancelled && inR(b.arrival)), D = all2.filter(b => !b.cancelled && inR(b.departure));
+      let inq: any[] = []; try { inq = list(await get('/inquiries?limit=100')).filter((q: any) => q.received_utc && inR(isoDay(new Date(q.received_utc)))); } catch {}
+      const bal = created.filter(b => (b.balance || 0) > 0);
+      const sec = (t: string, rows: string[]) => rows.length ? `${t} (${rows.length}):\n` + rows.join('\n') : `${t}: none`;
+      return { verified: true, reply: [`Activity summary — ${when.label}`,
+        sec('New bookings', created.slice(0, 15).map(b => line(b) + (b.total != null ? ' — ' + money(b.total) : ''))),
+        sec('Cancelled', cancelled.slice(0, 15).map(b => line(b))),
+        sec('Changed or updated', changed.slice(0, 15).map(b => line(b))),
+        sec('Check-ins', A.slice(0, 15).map(b => line(b, false))),
+        sec('Check-outs', D.slice(0, 15).map(b => line(b, false))),
+        `New inquiries: ${inq.length}`,
+        bal.length ? `New bookings with a balance due: ${bal.length} (${money(bal.reduce((t, b) => t + (b.balance || 0), 0))})` : ''].filter(Boolean).join('\n\n') + '\n\nOwnerRez doesn\'t log messages, reviews or manual edits through this API, so those aren\'t included.' };
+    }
     case 'inquiries': {
       const inq = list(await get('/inquiries?limit=50'));
       const names = new Map<string, string>(((all as any).props || []).map((p: any) => [p.id, p.name]));
