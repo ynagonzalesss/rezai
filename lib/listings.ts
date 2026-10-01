@@ -1,7 +1,7 @@
 // Server-side only. Property details and listing-content checks from OwnerRez.
 // The listing payload shape isn't fully documented, so field access is tolerant and
 // "debug" mode shows exactly which fields OwnerRez returned.
-import type { Fetcher } from './bookings';
+import { OR, type Fetcher } from './bookings';
 
 const list = (d: any): any[] => Array.isArray(d) ? d : d?.items || d?.results || d?.data || [];
 const text = (v: any): string => typeof v === 'string' ? v.replace(/<[^>]+>/g, ' ').replace(/\s+\n/g, '\n').replace(/[ \t]+/g, ' ').trim() : '';
@@ -63,7 +63,7 @@ export async function listingAnswer(get: Fetcher, message: string): Promise<{ re
         const c = await content(get, p);
         if (!c.description) { blocked++; return; }
         const miss = REQUIRED_BLOCKS.filter(b => !b.test.test(c.description + ' ' + c.summary)).map(b => b.label);
-        if (miss.length) rows.push(`• ${c.name} — missing: ${miss.join(', ')}`);
+        if (miss.length) rows.push(`• [${c.name}](${OR}/properties/${p.id}/description/edit) — missing: ${miss.join(', ')}`);
       }));
     }
     if (blocked === props.length) return { verified: false, reply: noContent() };
@@ -71,7 +71,7 @@ export async function listingAnswer(get: Fetcher, message: string): Promise<{ re
   }
 
   if (!named.length) {
-    return { verified: true, reply: 'Which property? Include its name, e.g. "description for Irma Arrowhead Lakes". Properties I can see:\n' + props.slice(0, 45).map(p => '• ' + (p.name || p.external_name)).join('\n') };
+    return { verified: true, reply: 'Which property? Include its name, e.g. "description for Irma Arrowhead Lakes". Properties I can see:\n' + props.slice(0, 45).map(p => `• [${p.name || p.external_name}](${OR}/properties/${p.id})`).join('\n') };
   }
 
   const out: string[] = []; let any = false;
@@ -79,7 +79,8 @@ export async function listingAnswer(get: Fetcher, message: string): Promise<{ re
     const c = await content(get, p);
     if (/debug|fields|raw/.test(m)) { out.push(`${c.name} — fields returned${c.source ? ' (from ' + c.source + ')' : ''}:\n` + Object.keys(c.flat).sort().join(', ')); any = true; continue; }
     const facts = [c.flat.bedrooms != null && `${c.flat.bedrooms} bedrooms`, c.flat.bathrooms != null && `${c.flat.bathrooms} baths`, c.flat.max_guests != null && `sleeps ${c.flat.max_guests}`].filter(Boolean).join(' · ');
-    const lines = [`**${c.name}**${facts ? ' — ' + facts : ''}`];
+    const pid = String(p.id);
+    const lines = [`**[${c.name}](${OR}/properties/${pid})**${facts ? ' — ' + facts : ''}`, `Open in OwnerRez: [description](${OR}/properties/${pid}/description/edit) · [amenities](${OR}/properties/${pid}/amenities) · [house rules](${OR}/properties/${pid}/houserules) · [rules](${OR}/properties/${pid}/rules)`];
     if (c.headline && c.headline !== c.name) lines.push('Headline: ' + c.headline);
     if (c.summary) lines.push('Summary: ' + cut(c.summary, full ? 5000 : 400));
     if (c.description) { any = true; lines.push('Description: ' + (full ? c.description : cut(c.description, 900))); }
