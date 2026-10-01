@@ -12,12 +12,12 @@ function Rich({text}:{text:string}){
 }
 export default function Home(){
  const [issues,setIssues]=useState<Issue[]>([]); const [props,setProps]=useState<Prop[]>([]);
- const [q,setQ]=useState(''); const [reply,setReply]=useState(''); const [mode,setMode]=useState('demo'); const [key,setKey]=useState(''); const [loading,setLoading]=useState(false);
+ const [hist,setHist]=useState<{q:string;a:string}[]>([]); const [q,setQ]=useState(''); const [reply,setReply]=useState(''); const [mode,setMode]=useState('demo'); const [key,setKey]=useState(''); const [loading,setLoading]=useState(false);
  const hdrs=(k:string):Record<string,string>=>k?{'x-rezai-key':k}:{};
  function load(k:string){fetch('/api/operations',{headers:hdrs(k)}).then(r=>r.json()).then(d=>{setIssues(d.issues);setProps(d.properties);setMode(d.mode)}).catch(()=>{})}
  useEffect(()=>{let k='';try{k=sessionStorage.getItem('rezai-key')||''}catch{};setKey(k);load(k)},[]);
  function saveKey(k:string){setKey(k);try{k?sessionStorage.setItem('rezai-key',k):sessionStorage.removeItem('rezai-key')}catch{};load(k)}
- async function ask(forced?:string){const text=(typeof forced==='string'?forced:q).trim();if(!text||loading)return;setLoading(true);try{const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json',...hdrs(key)},body:JSON.stringify({message:text})});const d=await r.json();setReply(d.reply||d.error||'No response.')}catch{setReply('Something went wrong. Please try again.')}finally{setLoading(false)}}
+ async function ask(forced?:string){const text=(typeof forced==='string'?forced:q).trim();if(!text||loading)return;setLoading(true);try{const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json',...hdrs(key)},body:JSON.stringify({message:text,history:hist})});const d=await r.json();const a=d.reply||d.error||'No response.';setReply(a);setHist(h=>[...h.slice(-3),{q:text,a}])}catch{setReply('Something went wrong. Please try again.')}finally{setLoading(false)}}
  const open=issues.filter(i=>i.status!=='resolved');
  return <main style={{minHeight:'100vh',background:'#f4f1ea',color:'#18232c',fontFamily:'Arial,sans-serif',padding:40}}>
   <div style={{maxWidth:1200,margin:'0 auto'}}>

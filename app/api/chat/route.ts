@@ -2,6 +2,7 @@ import {issues,properties} from '@/lib/demo';
 import {liveAllowed,ownerrez} from '@/lib/ownerrez';
 import {answer,parseIntent} from '@/lib/bookings';
 import {isListingQuestion,listingAnswer} from '@/lib/listings';
+import {geminiEnabled,geminiAnswer} from '@/lib/gemini';
 
 export async function POST(req:Request){
  const live=liveAllowed(req); let body:any={}; try{body=await req.json()}catch{}; const m=String(body.message||'').toLowerCase();
@@ -16,6 +17,12 @@ export async function POST(req:Request){
    const r=await answer(ownerrez,m);
    return Response.json({reply:r.reply,mode:'ownerrez',verified:r.verified,confidence:r.verified?.98:.8});
   }catch(e){console.error(e);return Response.json({reply:'I couldn\'t reach OwnerRez just now. Please try again in a minute.',mode:'ownerrez',verified:false,confidence:0})}
+ }
+ if(live&&geminiEnabled()&&!/maintenance|repair|broken|not working/.test(m)){
+  try{
+   const r=await geminiAnswer(ownerrez,String(body.message||''),Array.isArray(body.history)?body.history.slice(-4):[]);
+   return Response.json({reply:r.reply,mode:'ownerrez',verified:false,confidence:.8});
+  }catch(e){console.error(e);return Response.json({reply:'I couldn\'t reach OwnerRez or the AI model just now. Please try again in a minute.',mode:'ownerrez',verified:false,confidence:0})}
  }
  if(/maintenance|repair|broken|not working|issue/.test(m)){
   const open=issues.filter(i=>i.category==='maintenance'&&i.status!=='resolved');
