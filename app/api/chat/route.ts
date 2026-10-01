@@ -6,6 +6,10 @@ import {geminiEnabled,geminiAnswer} from '@/lib/gemini';
 
 export async function POST(req:Request){
  const live=liveAllowed(req); let body:any={}; try{body=await req.json()}catch{}; const m=String(body.message||'').toLowerCase();
+ if(live&&/debug\s+(booking|guest)\s*#?\s*\d+/.test(m)){
+  try{const r=await answer(ownerrez,m);return Response.json({reply:r.reply,mode:'ownerrez',verified:true,confidence:1})}
+  catch(e){return Response.json({reply:'Could not read that record from OwnerRez: '+String((e as any)?.message||e).slice(0,200),mode:'ownerrez',verified:false,confidence:0})}
+ }
  if(live&&isListingQuestion(m)){
   try{
    const r=await listingAnswer(ownerrez,m);
