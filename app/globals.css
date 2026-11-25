@@ -158,3 +158,81 @@ footer{margin-top:26px;font-size:12px;color:#94a3b8;text-align:center}
 .pal kbd{background:#f1f5f9;color:var(--soft)}
 @media (max-width:1100px){.grid.two{grid-template-columns:1fr}}
 @media (max-width:800px){.side-k{display:none}.kbd-btn{display:none}}
+/* v3: interactive platform */
+html[data-theme=dark]{--bg:#0a0f1a;--card:#111827;--ink:#e5e7eb;--soft:#94a3b8;--line:#1f2937;--blush:#0f2e2c;--aibg:#1e1f4b;--okbg:#0f2a1c;--warnbg:#2e1f0e}
+html[data-theme=dark] body{background:var(--bg)}
+html[data-theme=dark] .item:hover,html[data-theme=dark] .prop:hover{background:#0f172a}
+html[data-theme=dark] .tag,html[data-theme=dark] .pill{background:#1f2937;color:#cbd5e1}
+html[data-theme=dark] .chips button,html[data-theme=dark] .composer,html[data-theme=dark] .bubble.ai,html[data-theme=dark] .pal,html[data-theme=dark] .gmsg,html[data-theme=dark] .drawer textarea{background:#0f172a;color:var(--ink);border-color:var(--line)}
+html[data-theme=dark] .cta{background:#e5e7eb;color:#0b1220}
+html[data-theme=dark] .bar,html[data-theme=dark] .meter,html[data-theme=dark] .cbar{background:#1f2937}
+html[data-theme=dark] .tl::before{background:#1f2937}
+html[data-theme=dark] .pal-list button{color:var(--ink)}
+.top-act{display:flex;align-items:center;gap:10px}
+.icon-btn{position:relative;width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--soft);display:grid;place-items:center;transition:.2s}
+.icon-btn:hover{color:var(--ink);border-color:#cbd5e1}
+.nb{position:absolute;top:9px;right:10px;width:7px;height:7px;border-radius:50%;background:#ef4444;box-shadow:0 0 0 2px var(--card)}
+button.item,button.prop{width:100%;background:none;border:0;border-top:1px solid var(--line);text-align:left;color:inherit;font:inherit;cursor:pointer}
+.item.sel{background:var(--aibg)}
+.tag.prog{background:var(--aibg);color:var(--ai)}
+.tag.warnt{background:var(--warnbg);color:var(--warn)}.tag.okt{background:var(--okbg);color:var(--ok)}
+.perf{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:20px;margin-top:20px}
+.perf .card{margin:0}
+.big{font-size:34px;font-weight:650;letter-spacing:-.03em;margin:4px 0}
+.big small{font-size:15px;color:var(--soft);font-weight:500}
+.pill.up{background:var(--okbg);color:var(--ok)}
+.spark{width:100%;height:86px;display:block}
+.days{display:flex;justify-content:space-between;font:500 11px "Geist Mono",monospace;color:var(--soft);margin-top:4px}
+.cat{display:grid;grid-template-columns:1fr 1.2fr 20px;gap:10px;align-items:center;padding:8px 0;font-size:13.5px}
+.cbar{height:8px;border-radius:99px;background:#eef1f5;overflow:hidden}
+.cbar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#14b8a6,#6366f1);transition:width .8s}
+.cat b{font-family:"Geist Mono",monospace;font-weight:500;text-align:right}
+.rt{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.ring{position:relative;width:96px;height:96px;flex:none}
+.ring>svg{width:100%;height:100%}
+.ring span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:4px;font:600 12px "Geist Mono",monospace;color:var(--soft)}
+.dr-bg{position:fixed;inset:0;z-index:40;background:rgba(2,6,23,.35);backdrop-filter:blur(2px);animation:fade .2s both}
+.drawer{position:fixed;top:0;right:0;bottom:0;z-index:45;width:min(460px,100vw);background:var(--card);border-left:1px solid var(--line);box-shadow:-30px 0 60px -30px rgba(2,6,23,.4);padding:22px 24px;overflow-y:auto;transform:translateX(105%);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.drawer.on{transform:none}
+.dr-head{display:flex;justify-content:space-between;align-items:center}
+.dr-tags{display:flex;gap:8px;align-items:center}
+.drawer h3{font-size:20px;font-weight:650;letter-spacing:-.02em;margin:16px 0 10px;line-height:1.3}
+.dr-meta{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;color:var(--soft)}
+.dr-meta span{display:inline-flex;align-items:center;gap:6px}
+.dr-sec{margin-top:22px}
+.dr-sec>small{display:flex;align-items:center;gap:5px;font:500 11.5px "Geist Mono",monospace;color:var(--soft);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
+.gmsg{background:#f8fafc;border:1px solid var(--line);border-radius:12px 12px 12px 4px;padding:13px 15px;font-size:14.5px;line-height:1.6}
+.conf{display:grid;gap:8px}.conf>div:first-child{display:flex;justify-content:space-between;font-size:14px}.conf span{color:var(--soft);font-family:"Geist Mono",monospace;font-size:12.5px}
+.drawer textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:13px 14px;font:inherit;font-size:14px;line-height:1.6;resize:vertical;background:#fff;color:var(--ink);outline:none}
+.drawer textarea:focus{border-color:#a5b4fc;box-shadow:0 0 0 4px rgba(99,102,241,.15)}
+.dr-act{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.ghost{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 13px;font-size:13.5px;font-weight:500}
+.ghost:hover{border-color:#a5b4fc;color:var(--ai)}
+.dr-note{font-size:12px;color:var(--soft);margin-top:12px}
+.chk{display:flex;align-items:center;gap:9px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;font-size:13.5px;color:var(--ok);width:100%;background:none;text-align:left;font-family:inherit}
+.chk em{margin-left:auto;font-style:normal;font:500 11.5px "Geist Mono",monospace;color:var(--soft)}
+.chk.miss{color:var(--warn);background:var(--warnbg);border-color:transparent}
+.chk.muted{color:var(--soft)}
+.chk.link{color:var(--ink);cursor:pointer}.chk.link:hover{border-color:#a5b4fc}
+.toasts{position:fixed;right:20px;bottom:20px;z-index:60;display:grid;gap:10px}
+.toast{display:flex;gap:12px;align-items:center;min-width:300px;max-width:360px;padding:13px 15px;border-radius:12px;background:#0b1220;color:#e2e8f0;box-shadow:0 20px 40px -14px rgba(2,6,23,.55);border:1px solid #1e293b;animation:tin .35s cubic-bezier(.2,.8,.2,1) both}
+.toast b{display:block;font-size:13.5px}.toast span{font-size:12.5px;color:#94a3b8}
+.t-ico{width:32px;height:32px;flex:none;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,#14b8a6,#6366f1);color:#fff}
+@keyframes tin{from{opacity:0;transform:translateY(14px) scale(.96)}}
+.login{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 15% 10%,rgba(20,184,166,.22),transparent 40%),radial-gradient(circle at 85% 90%,rgba(99,102,241,.25),transparent 45%),#0b1220}
+.lg-card{width:min(420px,100%);background:rgba(15,23,42,.75);backdrop-filter:blur(16px);border:1px solid #1e293b;border-radius:20px;padding:34px 30px;color:#e2e8f0;text-align:center;box-shadow:0 40px 80px -30px rgba(0,0,0,.6);animation:up .5s both}
+.lg-logo{width:76px;height:76px;object-fit:contain;filter:drop-shadow(0 10px 24px rgba(167,139,250,.4))}
+.lg-card h1{font-size:26px;font-weight:650;letter-spacing:-.03em;margin:12px 0 4px}
+.lg-card>p{color:#94a3b8;margin:0 0 24px}
+.lg-field{display:block;text-align:left;margin-bottom:12px}
+.lg-field span{display:block;font:500 11.5px "Geist Mono",monospace;color:#94a3b8;margin-bottom:6px}
+.lg-field input{width:100%;background:#0b1220;border:1px solid #1e293b;border-radius:10px;padding:12px 14px;color:#e2e8f0;font:inherit;outline:none}
+.lg-field.key{display:flex;align-items:center;gap:8px;background:#0b1220;border:1px solid #1e293b;border-radius:10px;padding:0 12px;color:#64748b}
+.lg-field.key input{border:0;padding:12px 0;background:none}
+.lg-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:10px;padding:13px;font-weight:600;color:#fff;background:linear-gradient(90deg,#0d9488,#6366f1);box-shadow:0 14px 30px -12px rgba(99,102,241,.7);transition:.2s}
+.lg-btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.lg-or{display:flex;align-items:center;gap:10px;margin:20px 0 12px;font-size:12px;color:#64748b}
+.lg-or::before,.lg-or::after{content:"";flex:1;height:1px;background:#1e293b}
+.lg-card small{display:block;margin-top:14px;font-size:12px;color:#64748b}
+@media (max-width:1100px){.perf{grid-template-columns:1fr}}
+@media (max-width:800px){.top-act .cta{display:none}}
