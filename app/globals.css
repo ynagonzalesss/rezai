@@ -10,7 +10,7 @@ button{font:inherit;cursor:pointer}
 .side{position:sticky;top:0;height:100vh;background:var(--side);color:#f2e7ea;padding:24px 18px;display:flex;flex-direction:column;gap:28px;background-image:radial-gradient(circle at 0% 0%,rgba(20,184,166,.18),transparent 45%),radial-gradient(circle at 100% 100%,rgba(99,102,241,.16),transparent 50%);border-right:1px solid #1e293b}
 .brand{display:flex;align-items:center;gap:12px;padding:0 6px}
 .brand b{font-weight:700;font-size:19px;letter-spacing:-.02em;display:block;line-height:1.1}
-.brand small{font-size:12px;color:#94a3b8;letter-spacing:.04em}
+.logo-img{width:44px;height:44px;object-fit:contain;filter:drop-shadow(0 6px 14px rgba(167,139,250,.35))}.ai-grad{background:linear-gradient(90deg,#a78bfa,#f6b26b);-webkit-background-clip:text;background-clip:text;color:transparent}.brand small{font-size:12px;color:#94a3b8;letter-spacing:.04em}
 .logo{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,#14b8a6,#6366f1);color:#fff;box-shadow:0 8px 20px -8px rgba(99,102,241,.7)}
 .side nav{display:grid;gap:4px}
 .side nav a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;color:#94a3b8;text-decoration:none;font-weight:500;transition:.2s}

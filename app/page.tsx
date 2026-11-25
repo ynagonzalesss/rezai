@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
-import {AlertTriangle,CheckCircle2,Wrench,MessageSquare,Sparkles,LayoutDashboard,Home as HomeIcon,Inbox,Bot,KeyRound,ArrowUp,ShieldCheck,Gauge,Activity,Radio,Hand} from 'lucide-react';
+import {AlertTriangle,CheckCircle2,Wrench,MessageSquare,Sparkles,LayoutDashboard,Home as HomeIcon,Inbox,Bot,KeyRound,ArrowUp,ShieldCheck,Gauge,Activity,Radio} from 'lucide-react';
 
 type Issue={id:string;property:string;guest:string;summary:string;category:string;priority:string;status:string;assignee:string};
 type Prop={id:string;name:string;score:number;review:boolean;city:string};
@@ -34,7 +34,7 @@ export default function Home(){
  ];
  return <div className="shell">
   <aside className="side">
-   <div className="brand"><span className="logo"><Sparkles size={18}/></span><div><b>RezAI</b><small>Operations Copilot</small></div></div>
+   <div className="brand"><img src="/logo-mark.png" alt="" className="logo-img"/><div><b>Rez<span className="ai-grad">AI</span></b><small>Vacation Rental Copilot</small></div></div>
    <nav>
     <a className="on" href="#top"><LayoutDashboard size={17}/>Overview</a>
     <a href="#attention"><Inbox size={17}/>Needs attention<span className="count">{open.length}</span></a>
@@ -49,7 +49,7 @@ export default function Home(){
 
   <main className="main" id="top">
    <header className="top">
-    <div><p className="date">{today}</p><h1>{greeting()}, team <span className="wave"><Hand size={30} strokeWidth={1.8}/></span></h1><p className="lead">Here&apos;s what needs you across your rentals today.</p></div>
+    <div><p className="date">{today}</p><h1>{greeting()}, team</h1><p className="lead">Here&apos;s what needs you across your rentals today.</p></div>
     <button className="cta" onClick={()=>{document.getElementById('ask')?.scrollIntoView({behavior:'smooth'});ask('Daily briefing for today')}}><Sparkles size={16}/>Get today&apos;s briefing</button>
    </header>
 
