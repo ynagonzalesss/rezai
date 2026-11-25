@@ -6,7 +6,7 @@ export const properties = [
  {id:'p4',name:'Chandler Family Home',score:100,review:false,city:'Chandler'}
 ];
 export const issues:Issue[] = [
- {id:'i1',property:'Scottsdale Desert Retreat',guest:'Demo Guest',summary:'AC is running but the bedroom is still warm.',category:'maintenance',priority:'high',status:'open',assignee:'Kathleen',confidence:.97},
- {id:'i2',property:'Mesa Sunset Villa',guest:'Demo Guest',summary:'Guest asked whether late checkout is available.',category:'guest_concern',priority:'medium',status:'open',assignee:'Alissa',confidence:.94},
- {id:'i3',property:'Belize Coastal Villa',guest:'Demo Guest',summary:'Guest verification is still pending.',category:'management_escalation',priority:'high',status:'in_review',assignee:'Lori',confidence:.91}
+ {id:'i1',property:'Scottsdale Desert Retreat',guest:'Demo Guest',summary:'AC is running but the bedroom is still warm.',category:'maintenance',priority:'high',status:'open',assignee:'Maya Reyes',confidence:.97},
+ {id:'i2',property:'Mesa Sunset Villa',guest:'Demo Guest',summary:'Guest asked whether late checkout is available.',category:'guest_concern',priority:'medium',status:'open',assignee:'Jordan Lee',confidence:.94},
+ {id:'i3',property:'Belize Coastal Villa',guest:'Demo Guest',summary:'Guest verification is still pending.',category:'management_escalation',priority:'high',status:'in_review',assignee:'Sam Carter',confidence:.91}
 ];
