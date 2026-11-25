@@ -10,3 +10,11 @@ export const issues:Issue[] = [
  {id:'i2',property:'Mesa Sunset Villa',guest:'Demo Guest',summary:'Guest asked whether late checkout is available.',category:'guest_concern',priority:'medium',status:'open',assignee:'Jordan Lee',confidence:.94},
  {id:'i3',property:'Belize Coastal Villa',guest:'Demo Guest',summary:'Guest verification is still pending.',category:'management_escalation',priority:'high',status:'in_review',assignee:'Sam Carter',confidence:.91}
 ];
+
+export const schedule = [
+ {time:'10:00',type:'checkout',property:'Mesa Sunset Villa',guest:'Demo Guest A'},
+ {time:'11:00',type:'clean',property:'Mesa Sunset Villa',guest:'Housekeeping'},
+ {time:'11:00',type:'checkout',property:'Chandler Family Home',guest:'Demo Guest B'},
+ {time:'15:00',type:'checkin',property:'Mesa Sunset Villa',guest:'Demo Guest C',sameDay:true},
+ {time:'16:00',type:'checkin',property:'Scottsdale Desert Retreat',guest:'Demo Guest D'}
+];
